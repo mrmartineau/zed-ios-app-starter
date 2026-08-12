@@ -1,0 +1,35 @@
+{
+  "identifier" : "A1000001-0000-0000-0000-000000000001",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "A1000002-0000-0000-0000-000000000002",
+      "localizations" : [
+        {
+          "description" : "Unlock every feature with a single purchase.",
+          "displayName" : "Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "wtf.zander.AppStarter.pro",
+      "referenceName" : "Pro Unlock",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "A1000003-0000-0000-0000-000000000003",
+    "_developerTeamID" : "C49QLB3U49",
+    "_lastSynchronizedDate" : 0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
