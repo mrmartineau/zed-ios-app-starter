@@ -1,7 +1,10 @@
-# App Starter
+# zed-ios-app-starter
 
-A SwiftUI starter project to scaffold new iOS apps from, so the same shell
-doesn't get rebuilt every time. iOS 18+, Xcode 26, no third-party dependencies.
+SwiftUI, SwiftData, iOS 18+, Xcode 26, no third-party dependencies.
+
+<!-- template-only:start -->
+A starter project to scaffold new iOS apps from, so the same shell doesn't get
+rebuilt every time.
 
 ```sh
 ./scaffold.sh MyNewApp
@@ -11,6 +14,16 @@ open ../MyNewApp/MyNewApp.xcodeproj
 That copies the template to a sibling directory, renames everything (target,
 scheme, `@main` struct, bundle ID, StoreKit product IDs, this README) and makes
 a first commit. See [Scaffolding](#scaffolding) for the options.
+
+
+> [!NOTE]
+> The repo is `zed-ios-app-starter`; the Xcode target inside it is
+> **`AppStarter`**. Those differ on purpose — `AppStarter` is the placeholder
+> that `scaffold.sh` replaces, and it has to be a valid Swift identifier
+> because it becomes `struct AppStarterApp` (a hyphenated name wouldn't
+> compile). Nothing needs renaming here; run the script and the generated
+> project carries your name throughout.
+<!-- template-only:end -->
 
 ## What's in it
 
@@ -28,7 +41,7 @@ a first commit. See [Scaffolding](#scaffolding) for the options.
 ## Layout
 
 ```
-AppStarter/
+zed-ios-app-starter/
 ├── scaffold.sh                    Rename-and-copy script
 ├── AppStarter.xcodeproj
 │   └── xcshareddata/xcschemes/    Shared scheme (checked in, so CI works)
@@ -55,6 +68,7 @@ compiled automatically. New folders are picked up too. The only files that need
 a `project.pbxproj` change are ones that must be *excluded* — currently
 `Info.plist` and `Products.storekit`, both listed under `membershipExceptions`.
 
+<!-- template-only:start -->
 ## Scaffolding
 
 ```
@@ -79,6 +93,7 @@ the original).
 `DEVELOPMENT_TEAM` is set to `C49QLB3U49` in the project so device builds work
 without visiting Signing & Capabilities. Change it in `project.pbxproj` for a
 different team.
+<!-- template-only:end -->
 
 ## The pieces
 

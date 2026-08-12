@@ -16,6 +16,10 @@ TEMPLATE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_NAME="AppStarter"
 TEMPLATE_BUNDLE_ID="wtf.zander.AppStarter"
 TEMPLATE_DISPLAY_NAME="App Starter"
+# The repo directory, which differs from the target name on purpose: this one
+# is kebab-case for GitHub, that one has to be a valid Swift identifier. Both
+# are rewritten so the generated project has no trace of either.
+TEMPLATE_REPO_NAME="zed-ios-app-starter"
 
 usage() {
   cat <<'USAGE'
@@ -124,11 +128,25 @@ find . -type f \
   -print0 |
 while IFS= read -r -d '' file; do
   LC_ALL=C sed -i '' \
+    -e "s|${TEMPLATE_REPO_NAME}|${NAME}|g" \
     -e "s|${TEMPLATE_BUNDLE_ID}|${BUNDLE_ID}|g" \
     -e "s|${TEMPLATE_DISPLAY_NAME}|${DISPLAY_NAME}|g" \
     -e "s|${TEMPLATE_NAME}|${NAME}|g" \
     "$file"
 done
+
+# Parts of the README document the template itself — how to scaffold, and why
+# the repo and target are named differently. Both are meaningless once you're
+# holding the generated project (scaffold.sh isn't even there any more), and
+# the substitutions above would have turned them into nonsense. Strip the
+# regions the template marked as its own.
+if [ -f README.md ]; then
+  awk '
+    /<!-- template-only:start -->/ { skip = 1; next }
+    /<!-- template-only:end -->/   { skip = 0; next }
+    !skip
+  ' README.md > README.md.tmp && mv README.md.tmp README.md
+fi
 
 # The scaffold script itself has now been rewritten to refer to the new project,
 # which would make it useless. Remove it — the template keeps the original.
@@ -139,7 +157,7 @@ rm -f scaffold.sh
 if [ "$INIT_GIT" -eq 1 ] && command -v git >/dev/null 2>&1; then
   git init -q
   git add -A
-  git -c user.useConfigOnly=false commit -q -m "Scaffold $NAME from AppStarter template"
+  git -c user.useConfigOnly=false commit -q -m "Scaffold $NAME from $TEMPLATE_REPO_NAME"
   printf 'Initialised a git repository with one commit.\n'
 fi
 
