@@ -1,0 +1,3 @@
+Raw simulator captures go here, named to match the `source` of each panel in
+../shotframe.config.jsonc. They are the input, not the output: the framed
+screenshots are written to fastlane/screenshots/en-GB.

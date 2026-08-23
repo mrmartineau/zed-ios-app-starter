@@ -97,11 +97,12 @@ if command -v rsync >/dev/null 2>&1; then
     --exclude 'DerivedData' \
     --exclude 'xcuserdata' \
     --exclude '*.xcuserstate' \
+    --exclude 'node_modules' \
     "$TEMPLATE_DIR"/ "$DEST"/
 else
   cp -R "$TEMPLATE_DIR"/. "$DEST"/
   rm -rf "$DEST/.git"
-  find "$DEST" \( -name '.DS_Store' -o -name 'xcuserdata' -o -name 'DerivedData' -o -name 'build' \) \
+  find "$DEST" \( -name '.DS_Store' -o -name 'xcuserdata' -o -name 'DerivedData' -o -name 'build' -o -name 'node_modules' \) \
     -exec rm -rf {} + 2>/dev/null || true
 fi
 

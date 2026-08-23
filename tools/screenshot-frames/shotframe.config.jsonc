@@ -1,0 +1,63 @@
+{
+  "$schema": "../../node_modules/@mrmartineau/shotframe/schema.json",
+
+  // 1320 × 2868, which is what App Store Connect wants for a 6.9" display.
+  // Nothing here is resampled, so shoot on an iPhone 17 Pro Max simulator at
+  // its natural size. Shoot the whole set in one appearance, light or dark: a
+  // light capture among five dark ones reads as a mistake.
+  "device": "iphone-6.9",
+  "sources": "sources",
+  "out": "../../fastlane/screenshots/en-GB",
+
+  // Deliberately left at shotframe's neutral dark default. Replace these with
+  // your own tokens from Support/Theme.swift and change them together — a
+  // blue app with a green listing is the failure this default avoids.
+  //
+  // "theme": {
+  //   "background": "linear-gradient(180deg, #1d4527 0%, #0b1c10 100%)",
+  //   "fonts": {
+  //     "display": "\"SF Pro Rounded\", -apple-system, sans-serif",
+  //     "text": "\"SF Pro Text\", -apple-system, sans-serif"
+  //   },
+  //   "colors": { "eyebrow": "#9cd19d", "heading": "#f0faef", "body": "#c2e6c2" }
+  // },
+
+  // In upload order, and the order matters twice: the store shows the first
+  // three in search results, and `deliver` uploads in filename order, which is
+  // why the slugs are numbered.
+  //
+  // Keep `heading` under about 40 characters and `body` under about 110. Each
+  // gets two lines whether it uses them or not, and that reservation is what
+  // holds the phone at the same height across the set. A third line pushes the
+  // phone out of the frame, so `pnpm screenshots` fails the build instead.
+  //
+  // Give every panel an eyebrow or none, and a body or none. Mixing them makes
+  // the phone jump as someone swipes through.
+  //
+  // These three are a shape to edit, not copy to ship. Until the captures
+  // named below exist in sources/, the build fails with "Missing captures" —
+  // which is the correct answer to "have you taken your screenshots yet".
+  "panels": [
+    {
+      "slug": "01-first",
+      "source": "first.png",
+      "eyebrow": "Two or three words",
+      "heading": "What this screen is for, in one line",
+      "body": "Why someone would want it, in the words they would use themselves."
+    },
+    {
+      "slug": "02-second",
+      "source": "second.png",
+      "eyebrow": "Two or three words",
+      "heading": "The second thing worth showing",
+      "body": "The heading sells the screen; this line says why it matters."
+    },
+    {
+      "slug": "03-third",
+      "source": "third.png",
+      "eyebrow": "Two or three words",
+      "heading": "The third thing worth showing",
+      "body": "Keep the whole set at one reading level so it reads as a set."
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+#
+# bump — raise the iOS app's build number, ready for its release notes.
+#
+# Usage:
+#   bump                     11 -> 12
+#   bump --version 1.1       also set MARKETING_VERSION
+#   bump --dry-run           say what would change, write nothing
+#
+# Run from the repo root. Where a repo wires this into package.json it is
+# `pnpm bump -- --dry-run`; pnpm forwards the separator and the loop below
+# swallows it.
+#
+# Prints the new build number on stdout; everything else goes to stderr.
+#
+# Deliberately does not commit and does not tag. Write the release notes first,
+# read the diff, then commit and run `pnpm tag`.
+#
+# agvtool is not used: it needs VERSIONING_SYSTEM = apple-generic, which Xcode's
+# GENERATE_INFOPLIST_FILE template does not set.
+
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+usage() {
+  awk 'NR>2 && /^#/ {sub(/^# ?/, ""); print; next} NR>2 {exit}' "$0"
+}
+
+project="${IOS_PROJECT:-}"
+version=""
+dry_run=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    # pnpm forwards the separator itself, so `pnpm bump -- --dry-run`
+    # arrives here as `-- --dry-run`. Swallow it rather than rejecting it.
+    --) shift ;;
+    -h|--help) usage; exit 0 ;;
+    --project) project="${2:-}"; shift 2 ;;
+    --version) version="${2:-}"; shift 2 ;;
+    --dry-run) dry_run=true; shift ;;
+    *) echo "error: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+if [ -n "$version" ] && ! echo "$version" | grep -qE '^[0-9]+(\.[0-9]+){1,2}$'; then
+  echo "error: --version must look like 1.1 or 1.1.2, got '$version'" >&2
+  exit 2
+fi
+
+project=$(resolve_project "$project")
+pbx="$project/project.pbxproj"
+current=$(current_build "$pbx")
+next=$((current + 1))
+marketing=$(grep -m1 -oE 'MARKETING_VERSION = [^;]+;' "$pbx" | sed 's/MARKETING_VERSION = //; s/;$//' || true)
+
+if git rev-parse -q --verify "refs/tags/build/$next" >/dev/null 2>&1; then
+  echo "error: tag build/$next already exists — build $next has shipped" >&2
+  exit 1
+fi
+
+last=$(git describe --tags --match 'build/*' --abbrev=0 2>/dev/null || true)
+if [ -n "$last" ]; then
+  echo "notes should cover $last..HEAD ($(git rev-list --count "$last..HEAD") commits)" >&2
+else
+  echo "warn: no build/* tag yet — nothing marks the last release." >&2
+  echo "      Say which commit shipped last, or that you used the whole history." >&2
+fi
+
+echo "build $current -> $next${version:+, version $marketing -> $version} in $project" >&2
+
+if $dry_run; then
+  echo "dry run: nothing written" >&2
+  echo "$next"
+  exit 0
+fi
+
+sed -i '' "s/CURRENT_PROJECT_VERSION = $current;/CURRENT_PROJECT_VERSION = $next;/g" "$pbx"
+[ -n "$version" ] && sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = $version;/g" "$pbx"
+
+echo >&2
+echo "when the notes and the diff read right:" >&2
+echo "  git commit -am \"Ship build $next\" && $(dirname "$0")/tag" >&2
+
+echo "$next"

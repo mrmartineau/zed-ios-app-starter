@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# tag — mark the commit that ships as build/N.
+#
+# Usage:
+#   tag                    tag HEAD with the project's current build number
+#   tag --build 12         tag a specific number
+#   tag --allow-dirty      tag anyway with uncommitted changes
+#
+# Run from the repo root. Where a repo wires this into package.json it is
+# `pnpm tag -- --build 12`.
+#
+# This tag is the boundary the next release's notes diff against, so it has to
+# point at the commit you actually archived. Refuses a dirty working tree by
+# default for that reason, and never moves a tag that already exists.
+
+set -euo pipefail
+. "$(dirname "$0")/lib.sh"
+
+usage() {
+  awk 'NR>2 && /^#/ {sub(/^# ?/, ""); print; next} NR>2 {exit}' "$0"
+}
+
+project="${IOS_PROJECT:-}"
+build=""
+allow_dirty=false
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    # pnpm forwards the separator itself, so `pnpm bump -- --dry-run`
+    # arrives here as `-- --dry-run`. Swallow it rather than rejecting it.
+    --) shift ;;
+    -h|--help) usage; exit 0 ;;
+    --project) project="${2:-}"; shift 2 ;;
+    --build) build="${2:-}"; shift 2 ;;
+    --allow-dirty) allow_dirty=true; shift ;;
+    *) echo "error: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+git rev-parse --git-dir >/dev/null 2>&1 || { echo "error: not a git repository" >&2; exit 1; }
+
+if [ -z "$build" ]; then
+  project=$(resolve_project "$project")
+  build=$(current_build "$project/project.pbxproj")
+elif ! echo "$build" | grep -qE '^[0-9]+$'; then
+  echo "error: --build must be a number, got '$build'" >&2
+  exit 2
+fi
+
+if git rev-parse -q --verify "refs/tags/build/$build" >/dev/null; then
+  echo "error: build/$build already exists, on $(git rev-parse --short "build/$build")" >&2
+  echo "       a shipped build keeps its tag — bump before tagging again" >&2
+  exit 1
+fi
+
+if ! $allow_dirty && [ -n "$(git status --porcelain)" ]; then
+  echo "error: uncommitted changes — commit them, or the tag points at something you didn't archive" >&2
+  echo "       pass --allow-dirty if you meant it" >&2
+  exit 1
+fi
+
+git tag "build/$build"
+echo "tagged build/$build on $(git rev-parse --short HEAD)" >&2
+echo "build/$build"

@@ -1,0 +1,17 @@
+{
+  "name": "app-tools",
+  "private": true,
+  "description": "Scripts only. The app is Swift; this file exists to hold the release commands and pin shotframe.",
+  "scripts": {
+    "bump": "tools/ios-release/bump",
+    "tag": "tools/ios-release/tag",
+    "screenshots": "shotframe -c tools/screenshot-frames/shotframe.config.jsonc"
+  },
+  "devDependencies": {
+    "@mrmartineau/shotframe": "^0.1.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@11.7.0"
+}

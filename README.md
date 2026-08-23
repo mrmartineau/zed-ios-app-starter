@@ -37,12 +37,23 @@ a first commit. See [Scaffolding](#scaffolding) for the options.
 - **Accessibility** — Reduce Motion helpers, combined VoiceOver labels
 - **Optional: in-app purchases** — StoreKit 2, off by default
 - **Optional: Claude API chat** — streaming, off by default
+- **Shipping** — fastlane lanes for the listing and TestFlight, framed App
+  Store screenshots, and `pnpm bump` / `pnpm tag`. See [Shipping](#shipping)
 
 ## Layout
 
 ```
 zed-ios-app-starter/
 ├── scaffold.sh                    Rename-and-copy script
+├── package.json                   Holds the release scripts, pins shotframe
+├── fastlane/
+│   ├── Fastfile                   listing, copy, beta
+│   ├── Appfile                    Bundle ID, Apple ID, team
+│   ├── metadata/en-GB/            The store listing, one file per field
+│   └── TestFlight/                What to Test, per build
+├── tools/
+│   ├── ios-release/               bump and tag
+│   └── screenshot-frames/         shotframe config and raw captures
 ├── AppStarter.xcodeproj
 │   └── xcshareddata/xcschemes/    Shared scheme (checked in, so CI works)
 └── AppStarter/
@@ -237,3 +248,151 @@ xcodebuild -project AppStarter.xcodeproj -scheme AppStarter \
 
 The scheme is checked in under `xcshareddata`, so this works on a clean
 checkout without opening Xcode first.
+
+## Shipping
+
+Four things that usually live in a browser tab live in the repo instead: the
+store listing, the screenshots, the release notes, and the build number. Each
+one is a file you edit and a command you run, so they show up in a diff and get
+read before they reach anyone.
+
+| Where | What |
+| --- | --- |
+| `fastlane/metadata/en-GB/` | the store listing, one file per field |
+| `fastlane/TestFlight/WhatToTest.en-GB.txt` | what testers are told, per build |
+| `tools/screenshot-frames/` | shotframe config, and the raw captures |
+| `tools/ios-release/` | `bump` and `tag` |
+
+### First, once
+
+```sh
+pnpm install                 # shotframe
+brew install fastlane
+```
+
+fastlane talks to App Store Connect with an API key, read from outside the repo
+because `.gitignore` blocks `*.p8` and that rule is there to be trusted:
+
+```sh
+export ASC_KEY_ID=XXXXXXXXXX
+export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+export ASC_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8
+```
+
+`fastlane/Appfile` carries the bundle ID, Apple ID and team — `scaffold.sh`
+rewrites the bundle ID with everything else, so a scaffolded project needs no
+edit there.
+
+### The listing — `fastlane listing`
+
+One file per App Store field. **The template ships them empty on purpose**:
+`deliver` skips any empty value, so a half-filled listing cannot push
+placeholder copy over something real.
+
+| File | Limit |
+| --- | --- |
+| `name.txt` | 30 characters |
+| `subtitle.txt` | 30 |
+| `keywords.txt` | 100, comma-separated, no spaces after the commas |
+| `promotional_text.txt` | 170 — editable without a new version |
+| `description.txt` | 4,000 |
+| `release_notes.txt` | 4,000 |
+| `support_url.txt`, `marketing_url.txt`, `privacy_url.txt` | a URL each |
+
+```sh
+fastlane listing    # metadata and screenshots
+fastlane copy       # metadata only, for a copy edit
+```
+
+Both stop short of submitting: pushing the listing and submitting the app are
+separate decisions. `deliver` renders an HTML preview and waits for
+confirmation, which is the last chance to notice a description that has gone
+past 4,000 characters — `force: true` skips it, and is for CI rather than for
+you.
+
+There is deliberately no lane that *pulls*. Downloading is `fastlane deliver
+download_metadata`, a subcommand rather than an action, and it overwrites the
+local files — so commit first and read the diff rather than trusting it.
+
+### Screenshots — `pnpm screenshots`
+
+shotframe takes simulator captures, puts each in a device bezel under a heading
+and a line of copy, and writes the set at the exact size the store demands.
+
+1. Shoot on an **iPhone 17 Pro Max** simulator — 6.9", which is the size App
+   Store Connect requires. Shoot the whole set in one appearance, light or
+   dark; one light capture among five dark ones reads as a mistake.
+2. Drop the PNGs in `tools/screenshot-frames/sources/`.
+3. Name each one in `panels` in `shotframe.config.jsonc`, and write the copy.
+4. `pnpm screenshots` → `fastlane/screenshots/en-GB/`, where `deliver` finds
+   them.
+
+The copy budget is a hard limit, not a guideline: heading and body each get two
+lines whether they use them or not, and that reservation is what holds the
+phone at the same height in every panel. A third line would push the phone out
+of the frame, so the build fails instead — roughly 40 characters of heading and
+110 of body. Shorten the copy rather than raising `reservedLines`, which
+shrinks the phone across the whole set.
+
+`theme` is left at shotframe's neutral dark default. Replace it with your own
+tokens from `Support/Theme.swift` and change the two together — the default is
+plain so that a blue app doesn't quietly ship a green listing.
+
+### Release notes
+
+Two documents, two audiences, and they are not the same text:
+
+| File | Goes to | Written per |
+| --- | --- | --- |
+| `fastlane/TestFlight/WhatToTest.en-GB.txt` | testers | every build |
+| `fastlane/metadata/en-GB/release_notes.txt` | customers, and App Review | every marketing version |
+
+What to Test wants a task — what changed, what to poke at, and what you are
+unsure about. What's New is customer-facing only, in the app's own voice, and
+phrases fixes as the restored behaviour rather than the bug.
+
+**`deliver` will not upload `release_notes.txt` for a first version.** It checks
+whether the app has more than one version on App Store Connect and skips the
+field with *"Skipping 'release_notes'... this is the first version of the app"*
+— Apple has no What's New for a version nobody has seen. That file first
+matters at 1.1, and this is not a broken lane.
+
+Writing them is the `ios-release-notes` agent skill: ask Claude to bump the
+build and it works out what changed, drafts both, and stops before uploading.
+
+### Cutting a build
+
+```sh
+pnpm bump                     # 11 → 12
+pnpm bump -- --version 1.1    # also sets MARKETING_VERSION
+git commit -am "Bump the build number to 12"
+# archive and upload from Xcode
+fastlane beta                 # sets What to Test, distributes
+pnpm tag                      # build/12
+```
+
+The order is enforced rather than suggested. `bump` writes the build number and
+neither commits nor tags. `tag` refuses a dirty working tree, because a tag
+pointing at something you didn't archive is worse than no tag at all.
+
+That tag is the point of the whole exercise: `build/N` is what the *next*
+release's notes diff against, and without it "what changed since last time" has
+no answer. `bump` warns when it can't find one.
+
+`fastlane beta` distributes a build that is already on App Store Connect —
+`distribute_only`, so Xcode does the archiving and fastlane needs no signing
+setup of its own. It reads the notes file itself, because pilot's `changelog`
+option is the text and not a path.
+
+**`agvtool` is not used**, and can't be: it needs `VERSIONING_SYSTEM =
+apple-generic`, which Xcode's `GENERATE_INFOPLIST_FILE` template does not set.
+`bump` edits the build setting directly.
+
+### Still the browser
+
+- App Privacy nutrition labels — `upload_app_privacy_details_to_app_store` is a
+  separate action expecting `fastlane/app_privacy_details.json`, which it can
+  generate interactively with `skip_upload: true` on a first run.
+- Creating in-app purchase products, their localisations and prices, and the
+  review screenshot on each.
+- Agreements, banking, tax, and anything with a signature.

@@ -1,0 +1,87 @@
+# App Store Connect, driven from the repo.
+#
+# The listing text under metadata/ is the source of truth for the store page:
+# edit it here, push it with one command, and the two stop being able to drift.
+# See the README's Shipping section for what still needs the browser.
+
+default_platform(:ios)
+
+# The App Store Connect API key. Read from outside the repo on purpose:
+# fastlane's `api_key_path` wants the private key *contents*, and .gitignore
+# carries a `*.p8` rule with a note about exactly this temptation.
+#
+#   export ASC_KEY_ID=XXXXXXXXXX
+#   export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#   export ASC_KEY_PATH=~/.appstoreconnect/private_keys/AuthKey_XXXXXXXXXX.p8
+def asc_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: File.expand_path(
+      ENV.fetch(
+        "ASC_KEY_PATH",
+        "~/.appstoreconnect/private_keys/AuthKey_#{ENV.fetch('ASC_KEY_ID', 'UNSET')}.p8"
+      )
+    )
+  )
+end
+
+platform :ios do
+  desc "Push the listing — metadata and screenshots. No binary, no submission."
+  lane :listing do
+    deliver(
+      api_key: asc_key,
+      skip_binary_upload: true,
+      # Pushing the listing and submitting the app are separate decisions, and
+      # this lane only ever does the first.
+      submit_for_review: false,
+      # Without this, six images uploaded to a slot that already holds six
+      # leaves you with twelve.
+      overwrite_screenshots: true,
+      # precheck cannot read in-app purchases with an API key (fastlane#18250).
+      # An app with products fails the run for a reason that has nothing to do
+      # with the listing.
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Metadata only — no screenshots. For a copy edit."
+  lane :copy do
+    deliver(
+      api_key: asc_key,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      submit_for_review: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  desc "Set a build's What to Test and distribute it. No binary — archive from Xcode first."
+  lane :beta do
+    # Resolved from the Fastfile rather than the working directory: a lane run
+    # from anywhere else would otherwise read nothing and distribute silently.
+    notes_path = File.expand_path("TestFlight/WhatToTest.en-GB.txt", __dir__)
+    notes = File.read(notes_path).strip
+    UI.user_error!("#{notes_path} is empty — write the notes before distributing") if notes.empty?
+
+    upload_to_testflight(
+      api_key: asc_key,
+      # The binary is already up: Xcode archives and uploads, and this lane only
+      # sets the notes and distributes. Without it, pilot goes looking for an
+      # .ipa and needs signing set up to build one.
+      distribute_only: true,
+      # `changelog` is the What to Test *text*, not a path to it — fastlane has
+      # no WhatToTest.txt convention that would read the file for us.
+      changelog: notes
+      # For external testers add `distribute_external: true` and `groups:`.
+      # Note that pilot then refuses to run without a changelog at all: it
+      # prompts, or fails outright on CI.
+    )
+  end
+
+  # There is deliberately no `pull` lane. Downloading is `fastlane deliver
+  # download_metadata`, a subcommand rather than an action, and every option
+  # `deliver` takes inside a lane *uploads*. A lane named for pulling that
+  # actually pushed would be a good way to overwrite the live listing with a
+  # stale working copy.
+end

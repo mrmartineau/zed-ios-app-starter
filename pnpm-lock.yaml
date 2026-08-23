@@ -1,0 +1,24 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    devDependencies:
+      '@mrmartineau/shotframe':
+        specifier: ^0.1.0
+        version: 0.1.0
+
+packages:
+
+  '@mrmartineau/shotframe@0.1.0':
+    resolution: {integrity: sha512-TA9nlwjAD5VpCHudfoooqjP40MHGzOoJsPD2jVa2RHsQTi7rRj7jg7ZYdJwQ0oBjW16klaxTvzIZnW40TPhj7Q==}
+    engines: {node: '>=20.11.0'}
+    hasBin: true
+
+snapshots:
+
+  '@mrmartineau/shotframe@0.1.0': {}
