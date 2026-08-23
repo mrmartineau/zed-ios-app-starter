@@ -30,15 +30,24 @@ import StoreKit
 ///   cross-device state — verify receipts server-side rather than trusting the
 ///   device. `Transaction` is cryptographically signed and StoreKit verifies
 ///   it, but the device can still be lied to about *your* server's opinion.
+///   `configure(accountID:report:)` is the hook for that; see its notes.
 @Observable
 @MainActor
 final class StoreManager {
     /// Product identifiers, kept in one place so the `.storekit` file, App
     /// Store Connect and the code can't drift apart.
+    ///
+    /// Two products of different *shapes* — one auto-renewable subscription and
+    /// one non-consumable — because that pair is what most small apps end up
+    /// selling, and because the two have genuinely different rules. A
+    /// subscription drags in the disclosure requirements handled in
+    /// `PaywallView`, renewal and lapsing, and a server that wants to know about
+    /// both. Delete whichever one a project doesn't sell.
     enum ProductID {
-        static let pro = "wtf.zander.AppStarter.pro"
+        static let annual = "wtf.zander.AppStarter.pro.annual"
+        static let lifetime = "wtf.zander.AppStarter.pro.lifetime"
 
-        static let all = [pro]
+        static let all = [annual, lifetime]
     }
 
     /// Loaded from the App Store (or the local `.storekit` file in the
@@ -57,9 +66,53 @@ final class StoreManager {
 
     /// The single entitlement check the rest of the app uses. Add a computed
     /// property per entitlement rather than checking raw IDs at call sites.
-    var hasPro: Bool { purchasedIDs.contains(ProductID.pro) }
+    ///
+    /// Either product grants Pro, so this asks whether anything is owned rather
+    /// than naming an ID. Once there are tiers that differ — a cheap one and a
+    /// dear one that unlocks more — this splits into one property per tier and
+    /// each names its own IDs.
+    ///
+    /// Local, and therefore only half the answer once a server is involved: the
+    /// server decides what a paid feature actually does. This is for drawing the
+    /// paywall, not for granting anything.
+    var hasPro: Bool { !purchasedIDs.isEmpty }
+
+    /// The signed-in account, stamped onto purchases as Apple's
+    /// `appAccountToken`.
+    ///
+    /// This is what lets a server attribute a subscription safely: Apple hands
+    /// the token back through its Server API, so the server hears which account
+    /// bought something from Apple rather than from the device. Without it,
+    /// linking a purchase would mean trusting a client's claim about an id that
+    /// isn't secret.
+    ///
+    /// It can only be attached at purchase time — Apple won't add it to a
+    /// transaction afterwards — which is why sign-in has to be wired to
+    /// `configure` before anyone can reach the paywall.
+    @ObservationIgnored private var accountID: UUID?
+
+    /// How a server is told about a transaction, if there is one. Receives the
+    /// `originalID`, which is the id that identifies a subscription across all
+    /// of its renewals — the one Apple's Server API takes.
+    @ObservationIgnored private var report: ((UInt64) async -> Void)?
 
     @ObservationIgnored private var updatesTask: Task<Void, Never>?
+
+    /// Call when sign-in state changes, before the paywall can be reached.
+    ///
+    /// Both values are optional and independent: an app with no accounts passes
+    /// neither and everything below still works, an app with a backend passes
+    /// both. What it should *not* do is pass an account id with no way to report
+    /// it — the token would be stamped onto purchases that nothing ever reads.
+    ///
+    /// The reporting closure is deliberately a closure rather than a network
+    /// call in this file. What the server wants — an endpoint, an auth header, a
+    /// response shape — is a per-project decision, and this type has no business
+    /// knowing it.
+    func configure(accountID: String? = nil, report: ((UInt64) async -> Void)? = nil) {
+        self.accountID = accountID.flatMap(UUID.init(uuidString:))
+        self.report = report
+    }
 
     deinit { updatesTask?.cancel() }
 
@@ -102,7 +155,12 @@ final class StoreManager {
         defer { isPurchasing = false }
 
         do {
-            switch try await product.purchase() {
+            // The token is what makes the purchase attributable server-side, so
+            // it goes on at purchase time or never — Apple won't add it later.
+            var options: Set<Product.PurchaseOption> = []
+            if let accountID { options.insert(.appAccountToken(accountID)) }
+
+            switch try await product.purchase(options: options) {
             case .success(let verification):
                 await handle(verification)
                 return purchasedIDs.contains(product.id)
@@ -142,15 +200,26 @@ final class StoreManager {
     /// Rebuilds `purchasedIDs` from what the user actually owns right now.
     func refreshEntitlements() async {
         var owned: Set<String> = []
+        var originalIDs: Set<UInt64> = []
+
         for await result in Transaction.currentEntitlements {
             guard case .verified(let transaction) = result else { continue }
             // A revoked purchase (refund, family sharing removed) still appears
             // here, so access must be withdrawn explicitly.
             if transaction.revocationDate == nil {
                 owned.insert(transaction.productID)
+                originalIDs.insert(transaction.originalID)
             }
         }
         purchasedIDs = owned
+
+        // The recovery path for a notification Apple dropped. Reporting what the
+        // device can see lets a server go and ask Apple about it, which is how
+        // an account that has quietly lapsed — or quietly renewed — gets put
+        // right without the user doing anything.
+        for originalID in originalIDs {
+            await report?(originalID)
+        }
     }
 
     /// Grants access for a verified transaction and finishes it.
@@ -163,6 +232,12 @@ final class StoreManager {
         }
 
         await refreshEntitlements()
+        await report?(transaction.originalID)
+
+        // Finished only after any server has been told. A transaction that isn't
+        // finished is replayed on the next launch, which is exactly the
+        // behaviour wanted if this device dies mid-flow: the purchase gets
+        // another chance to reach the server rather than being dropped.
         await transaction.finish()
     }
 

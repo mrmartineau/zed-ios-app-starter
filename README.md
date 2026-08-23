@@ -35,7 +35,7 @@ a first commit. See [Scaffolding](#scaffolding) for the options.
   white flash
 - **Theme** — spacing scale, radii, a `.card()` modifier, light/dark accent
 - **Accessibility** — Reduce Motion helpers, combined VoiceOver labels
-- **Optional: in-app purchases** — StoreKit 2, off by default
+- **Optional: in-app purchases** — StoreKit 2, subscription + lifetime, off by default
 - **Optional: Claude API chat** — streaming, off by default
 - **Shipping** — fastlane lanes for the listing and TestFlight, framed App
   Store screenshots, and `pnpm bump` / `pnpm tag`. See [Shipping](#shipping)
@@ -186,14 +186,41 @@ right:
 3. **Finishing transactions.** An unfinished transaction replays on every
    launch, forever.
 
+Two products ship, of deliberately different shapes: an annual auto-renewable
+subscription and a lifetime non-consumable. That pair is what most small apps
+end up selling, and the two follow different rules — delete whichever one a
+project doesn't want. `hasPro` treats either as unlocking everything; split it
+into a property per tier when they stop being equivalent.
+
 `Store/Products.storekit` is referenced by the shared scheme, so purchases work
 in the simulator with no App Store Connect setup — run, open Settings → Unlock
 Pro, and buy. Xcode's Debug → StoreKit menu resets local transactions.
 
+**Selling a subscription means the paywall carries legal weight.** Guideline
+3.1.2 requires the screen that sells it to state the title, the period, the
+price per period, that it renews unless cancelled, and to link a privacy policy
+and terms — builds get rejected for missing any of them. `PaywallView` has all
+of it: `terms(for:)` derives "Billed yearly, renews automatically" from the
+product rather than a hard-coded string, and `disclosure` carries the paragraph
+and the two links. **Replace `termsURL` and `privacyURL`** — App Review follows
+them, and a 404 is a rejection.
+
+`configure(accountID:report:)` is the hook for a backend, and both arguments are
+optional — an app with no accounts calls nothing and everything still works.
+Pass an account id and it's stamped onto purchases as Apple's `appAccountToken`,
+which is the only safe way to attribute a subscription: Apple hands the token
+back through its Server API, so the server hears who bought what *from Apple*
+rather than from the device. It can only be attached at purchase time, so wire
+sign-in to `configure` before anyone can reach the paywall. The `report` closure
+receives each transaction's `originalID` — the id that survives every renewal,
+and the one Apple's Server API takes. It fires on purchase and on every
+entitlement refresh, which is the recovery path for a notification Apple dropped.
+
 Before shipping: create the products in App Store Connect with the IDs from
 `StoreManager.ProductID`, add the In-App Purchase capability, and replace the
-placeholder terms text in `PaywallView`. For subscriptions or anything where
-refunds matter, verify receipts server-side rather than trusting the device.
+placeholder terms and privacy URLs in `PaywallView`. For subscriptions or
+anything where refunds matter, verify receipts server-side rather than trusting
+the device.
 
 ### Claude API chat — `Features/AI/`
 
