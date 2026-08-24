@@ -25,6 +25,8 @@ struct SettingsView: View {
                 }
             }
 
+            AppIconSection(showingPaywall: $showingPaywall)
+
             Section {
                 Toggle("Haptics", isOn: $settings.hapticsEnabled)
             } footer: {

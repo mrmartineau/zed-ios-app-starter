@@ -20,11 +20,11 @@ import SwiftUI
 /// An app selling only a non-consumable doesn't need the renewal sentence — but
 /// it still needs the two links, so keep `disclosure` and trim the paragraph.
 struct PaywallView: View {
-    /// Replace both before shipping. App Review follows them, finds a 404, and
-    /// rejects the build — this is one of the most common reasons a first
-    /// submission with a subscription comes back.
+    /// Replace `termsURL` before shipping. App Review follows both, finds a
+    /// 404, and rejects the build — this is one of the most common reasons a
+    /// first submission with a subscription comes back.
     private static let termsURL = URL(string: "https://example.com/terms")!
-    private static let privacyURL = URL(string: "https://example.com/privacy")!
+    private static let privacyURL = URL(string: "https://zander.wtf/privacy")!
 
     @Environment(StoreManager.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -38,6 +38,7 @@ struct PaywallView: View {
                     VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                         Benefit(symbol: "infinity", title: "Unlimited items", detail: "No cap on what you can save.")
                         Benefit(symbol: "icloud", title: "Sync", detail: "Keep everything in step across devices.")
+                        Benefit(symbol: "app.badge", title: "Choose your app icon", detail: "Four to pick from, whichever suits your home screen.")
                         Benefit(symbol: "heart", title: "Support development", detail: "Built by one person, with no adverts.")
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

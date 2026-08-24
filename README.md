@@ -36,6 +36,7 @@ a first commit. See [Scaffolding](#scaffolding) for the options.
 - **Theme** — spacing scale, radii, a `.card()` modifier, light/dark accent
 - **Accessibility** — Reduce Motion helpers, combined VoiceOver labels
 - **Optional: in-app purchases** — StoreKit 2, subscription + lifetime, off by default
+- **Alternate app icons** — four colourways, picker in Settings, gated on Pro
 - **Optional: Claude API chat** — streaming, off by default
 - **Shipping** — fastlane lanes for the listing and TestFlight, framed App
   Store screenshots, and `pnpm bump` / `pnpm tag`. See [Shipping](#shipping)
@@ -69,7 +70,7 @@ zed-ios-app-starter/
     │   └── AI/                    AnthropicClient, chat        (optional)
     ├── Models/                    Item (@Model), AppSettings
     ├── Store/                     Products.storekit
-    ├── Support/                   Theme, Motion, Haptics, Keychain, previews
+    ├── Support/                   Theme, Motion, Haptics, Keychain, icons, previews
     └── Assets.xcassets/
 ```
 
@@ -222,6 +223,35 @@ placeholder terms and privacy URLs in `PaywallView`. For subscriptions or
 anything where refunds matter, verify receipts server-side rather than trusting
 the device.
 
+### Alternate app icons — `Support/AppIconOption.swift`
+
+A picker in Settings, gated on Pro when purchases are on. Four colourways ship
+as placeholders — the point is the mechanism, not the artwork.
+
+Three build settings do the work: `ASSETCATALOG_COMPILER_APPICON_NAME` names the
+default, `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` lists the rest, and
+`ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` is what actually gets the
+alternates into the bundle — miss that one and `setAlternateIconName` fails at
+runtime with everything else looking correct.
+
+Two things that catch people out:
+
+1. **The swatches are separate images.** A compiled app icon is not addressable
+   as a `UIImage`, so a picker that tried to show the real icons would render
+   nothing. `AppIconPreview*.imageset` holds a copy of each.
+2. **The current icon is read from `UIApplication`, never stored.** iOS owns
+   that state and can reset it, so a mirrored `@AppStorage` flag would
+   eventually tick an icon that isn't on the home screen.
+
+Artwork is full-bleed and square, with no alpha and no rounded corners baked in:
+iOS applies its own mask, App Store Connect rejects an icon with an alpha
+channel, and the swatch clips to the same shape. Adding a fifth icon is a case
+in `AppIconOption`, an `.appiconset`, a preview `.imageset`, and the name in the
+build setting — nothing else.
+
+`AppIconSection` reads `StoreManager`, so deleting `Features/Purchases/` means
+following the compiler here too.
+
 ### Claude API chat — `Features/AI/`
 
 A streaming client for the [Claude Messages API], written against `URLSession`
@@ -261,8 +291,9 @@ mid-sentence.
 - **Localisation is ready but not started.** `LOCALIZATION_PREFERS_STRING_CATALOGS`
   and `SWIFT_EMIT_LOC_STRINGS` are on, so adding a String Catalog
   (File → New → String Catalog) picks up every literal already in the code.
-- **App icon is empty.** Drop a 1024×1024 PNG into `AppIcon.appiconset` — the
-  build doesn't fail without one, it just looks unfinished on device.
+- **The app icons are placeholders.** Four colourways of the same sparkle
+  mark, there so the picker has something to pick. Replace the 1024×1024 PNG in
+  each `.appiconset` and the matching swatch in `AppIconPreview*.imageset`.
 
 ## Build
 
