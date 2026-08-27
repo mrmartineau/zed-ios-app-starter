@@ -38,8 +38,10 @@ a first commit. See [Scaffolding](#scaffolding) for the options.
 - **Optional: in-app purchases** — StoreKit 2, subscription + lifetime, off by default
 - **Alternate app icons** — four colourways, picker in Settings, gated on Pro
 - **Optional: Claude API chat** — streaming, off by default
-- **Shipping** — fastlane lanes for the listing and TestFlight, framed App
-  Store screenshots, and `pnpm bump` / `pnpm tag`. See [Shipping](#shipping)
+- **Privacy** — a privacy manifest in the app, nutrition labels in a JSON file
+- **Shipping** — fastlane lanes for the listing, TestFlight and privacy labels,
+  framed App Store screenshots, and `pnpm bump` / `pnpm tag`. See
+  [Shipping](#shipping)
 
 ## Layout
 
@@ -60,6 +62,7 @@ zed-ios-app-starter/
 └── AppStarter/
     ├── AppStarterApp.swift        @main — container, environment, splash
     ├── Info.plist                 Launch screen only; the rest is generated
+    ├── PrivacyInfo.xcprivacy      Privacy manifest — required at submission
     ├── App/                       RootView (tabs), SplashView
     ├── Features/
     │   ├── Home/                  First tab
@@ -203,8 +206,10 @@ price per period, that it renews unless cancelled, and to link a privacy policy
 and terms — builds get rejected for missing any of them. `PaywallView` has all
 of it: `terms(for:)` derives "Billed yearly, renews automatically" from the
 product rather than a hard-coded string, and `disclosure` carries the paragraph
-and the two links. **Replace `termsURL` and `privacyURL`** — App Review follows
-them, and a 404 is a rejection.
+and the two links. `termsURL` and `privacyURL` point at zander.wtf; **a
+scaffolded project must repoint them** — App Review follows both, and a 404 is a
+rejection. Keep them in step with `fastlane/metadata/*/privacy_url.txt`, which is
+the same policy as far as Apple is concerned.
 
 `configure(accountID:report:)` is the hook for a backend, and both arguments are
 optional — an app with no accounts calls nothing and everything still works.
@@ -218,10 +223,10 @@ and the one Apple's Server API takes. It fires on purchase and on every
 entitlement refresh, which is the recovery path for a notification Apple dropped.
 
 Before shipping: create the products in App Store Connect with the IDs from
-`StoreManager.ProductID`, add the In-App Purchase capability, and replace the
-placeholder terms and privacy URLs in `PaywallView`. For subscriptions or
-anything where refunds matter, verify receipts server-side rather than trusting
-the device.
+`StoreManager.ProductID`, add the In-App Purchase capability, repoint the terms
+and privacy URLs in `PaywallView`, and add the purchase rows to the nutrition
+labels (see Privacy). For subscriptions or anything where refunds matter, verify
+receipts server-side rather than trusting the device.
 
 ### Alternate app icons — `Support/AppIconOption.swift`
 
@@ -309,10 +314,10 @@ checkout without opening Xcode first.
 
 ## Shipping
 
-Four things that usually live in a browser tab live in the repo instead: the
-store listing, the screenshots, the release notes, and the build number. Each
-one is a file you edit and a command you run, so they show up in a diff and get
-read before they reach anyone.
+Five things that usually live in a browser tab live in the repo instead: the
+store listing, the screenshots, the release notes, the build number, and the App
+Privacy nutrition labels. Each one is a file you edit and a command you run, so
+they show up in a diff and get read before they reach anyone.
 
 | Where | What |
 | --- | --- |
@@ -320,6 +325,7 @@ read before they reach anyone.
 | `fastlane/TestFlight/WhatToTest.en-GB.txt` | what testers are told, per build |
 | `tools/screenshot-frames/` | shotframe config, and the raw captures |
 | `tools/ios-release/` | `bump` and `tag` |
+| `fastlane/app_privacy_details.json` | the App Privacy nutrition labels |
 
 ### First, once
 
@@ -418,6 +424,56 @@ matters at 1.1, and this is not a broken lane.
 Writing them is the `ios-release-notes` agent skill: ask Claude to bump the
 build and it works out what changed, drafts both, and stops before uploading.
 
+### Privacy — `fastlane privacy`
+
+Two separate things, often confused, that have to agree with each other:
+
+| | Where | What it describes |
+| --- | --- | --- |
+| **Privacy manifest** | `AppStarter/PrivacyInfo.xcprivacy`, inside the app | the code — which required-reason APIs it calls |
+| **Nutrition labels** | `fastlane/app_privacy_details.json`, in App Store Connect | what you do with what you gather |
+
+Neither generates the other, and Apple checks both.
+
+**The manifest** has been required at submission since May 2024. It declares no
+tracking, nothing collected, and one required reason API: `UserDefaults`, with
+reason `CA92.1` — reading and writing defaults belonging to this app alone.
+`AppSettings` is what needs it. Get this wrong and the upload is rejected before
+review: `ITMS-91053` for a missing declaration, `ITMS-91055` for an invalid
+reason. Only declare what the code actually calls.
+
+**The labels** ship as `DATA_NOT_COLLECTED`, which is honest for the template as
+it stands — SwiftData is local, preferences are local, and both optional modules
+are off.
+
+```sh
+fastlane privacy
+```
+
+Two things about that lane. It authenticates with an **Apple ID, not the API
+key**: the action calls `Spaceship::ConnectAPI.login`, which replaces whatever
+client the key set up, so expect a password and a 2FA prompt. And the upload
+**replaces** every existing usage rather than merging, so the JSON is the whole
+answer, not an addition to what is already there. Run it with `skip_upload: true`
+to have it generate the file interactively instead.
+
+#### What each module adds
+
+Turning on a module changes both files. Neither is done for you, because what
+you have to declare depends on where the data goes:
+
+- **In-app purchases.** Nothing to declare on its own — Apple handles the
+  transaction and you never see a card number. But wiring
+  `configure(accountID:report:)` to a backend means you are storing purchase
+  history against an account, which is `PURCHASE_HISTORY`, `APP_FUNCTIONALITY`,
+  `DATA_LINKED_TO_YOU`.
+- **Claude API chat.** Prompts are user content leaving the device, which is
+  `OTHER_USER_CONTENT` at minimum. Whether it is linked to the user depends on
+  whether your proxy keeps it against an account.
+
+A third-party SDK brings its own manifest, and Xcode merges them — but the
+labels are still yours to declare.
+
 ### Cutting a build
 
 ```sh
@@ -448,9 +504,6 @@ apple-generic`, which Xcode's `GENERATE_INFOPLIST_FILE` template does not set.
 
 ### Still the browser
 
-- App Privacy nutrition labels — `upload_app_privacy_details_to_app_store` is a
-  separate action expecting `fastlane/app_privacy_details.json`, which it can
-  generate interactively with `skip_upload: true` on a first run.
 - Creating in-app purchase products, their localisations and prices, and the
   review screenshot on each.
 - Agreements, banking, tax, and anything with a signature.

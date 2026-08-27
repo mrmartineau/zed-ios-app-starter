@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The privacy manifest. Required at submission since May 2024, and separate
+  from the App Privacy nutrition labels — this file describes the *code*, the
+  labels describe what you do with what you gather. They have to agree, but
+  neither one generates the other: this ships inside the app, and the labels
+  live in App Store Connect (see fastlane/app_privacy_details.json).
+
+  What is declared below is true of the template as it ships, with both
+  optional modules off. Turning one on, or adding an SDK, changes it — the
+  README's "Privacy" section lists what each module adds.
+-->
+<plist version="1.0">
+<dict>
+	<!-- No tracking, and so no tracking domains. "Tracking" is Apple's own
+	     narrow meaning: linking this app's data to data from other companies'
+	     apps or sites for advertising or measurement. Answering true here
+	     obliges an App Tracking Transparency prompt. -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!-- Nothing leaves the device. SwiftData is local, preferences are in
+	     UserDefaults, and neither optional module is on. -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+
+	<!-- Required reason APIs: system calls that are fine to use but have to be
+	     justified, because they have historically been used for fingerprinting.
+	     An undeclared one is rejected as ITMS-91053, and a declared-but-wrong
+	     reason as ITMS-91055. Only what the code actually calls belongs here. -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<!-- AppSettings persists preferences to UserDefaults. CA92.1 is the
+			     reason for reading and writing defaults belonging to this app
+			     alone — not an app group, and nothing another app can see. An
+			     app group would need a different reason. -->
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

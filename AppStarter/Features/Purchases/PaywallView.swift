@@ -20,10 +20,13 @@ import SwiftUI
 /// An app selling only a non-consumable doesn't need the renewal sentence — but
 /// it still needs the two links, so keep `disclosure` and trim the paragraph.
 struct PaywallView: View {
-    /// Replace `termsURL` before shipping. App Review follows both, finds a
-    /// 404, and rejects the build — this is one of the most common reasons a
-    /// first submission with a subscription comes back.
-    private static let termsURL = URL(string: "https://example.com/terms")!
+    /// Both must resolve before shipping. App Review follows them, and a 404
+    /// is one of the most common reasons a first submission with a
+    /// subscription comes back. Scaffolding a new project means pointing these
+    /// at its own pages, and keeping them in step with
+    /// `fastlane/metadata/*/privacy_url.txt`, which App Store Connect shows on
+    /// the listing.
+    private static let termsURL = URL(string: "https://zander.wtf/terms")!
     private static let privacyURL = URL(string: "https://zander.wtf/privacy")!
 
     @Environment(StoreManager.self) private var store

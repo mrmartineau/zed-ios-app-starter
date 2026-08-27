@@ -79,6 +79,26 @@ platform :ios do
     )
   end
 
+  desc "Push the App Privacy nutrition labels. Apple ID login, not the API key."
+  lane :privacy do
+    # The odd one out. Every other lane here authenticates with `asc_key`, but
+    # this action calls `Spaceship::ConnectAPI.login` with an Apple ID, which
+    # replaces whatever client the API key set up. Passing `api_key:` would be
+    # accepted and then ignored, so it isn't passed at all — expect a password
+    # and a 2FA prompt on a cold session.
+    #
+    # `username` and `app_identifier` both default from the Appfile.
+    #
+    # The upload *replaces* every existing usage rather than merging, so this
+    # file is the whole answer, not an addition to what is already there.
+    upload_app_privacy_details_to_app_store(
+      # Resolved from the Fastfile, like the What to Test notes: a lane run from
+      # another directory would otherwise find nothing and ask the questions
+      # interactively instead.
+      json_path: File.expand_path("app_privacy_details.json", __dir__)
+    )
+  end
+
   # There is deliberately no `pull` lane. Downloading is `fastlane deliver
   # download_metadata`, a subcommand rather than an action, and every option
   # `deliver` takes inside a lane *uploads*. A lane named for pulling that
