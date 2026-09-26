@@ -31,6 +31,7 @@ struct PaywallView: View {
 
     @Environment(StoreManager.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var redeeming = false
 
     var body: some View {
         NavigationStack {
@@ -56,14 +57,21 @@ struct PaywallView: View {
 
                     buyButtons
 
-                    Button("Restore purchases") {
-                        Task { await store.restore() }
+                    HStack(spacing: Theme.Spacing.lg) {
+                        Button("Restore purchases") {
+                            Task { await store.restore() }
+                        }
+                        // An App Store Connect offer code, redeemed on the
+                        // system sheet. The result arrives on
+                        // `Transaction.updates`, so nothing here handles it.
+                        Button("Redeem a code") { redeeming = true }
                     }
                     .font(.footnote)
 
                     disclosure
                 }
                 .padding(Theme.Spacing.md)
+                .readableWidth()
             }
             .navigationTitle("Pro")
             .navigationBarTitleDisplayMode(.inline)
@@ -83,6 +91,7 @@ struct PaywallView: View {
             .onChange(of: store.hasPro) { _, unlocked in
                 if unlocked { dismiss() }
             }
+            .offerCodeRedemption(isPresented: $redeeming)
         }
     }
 
@@ -104,9 +113,16 @@ struct PaywallView: View {
 
     @ViewBuilder
     private var buyButtons: some View {
-        if store.products.isEmpty {
+        if store.products.isEmpty && store.errorMessage == nil {
             ProgressView()
                 .padding(.vertical, Theme.Spacing.md)
+        } else if store.products.isEmpty {
+            // Never fall through to "nothing to buy": an empty list means the
+            // load failed, and the error above says so.
+            Button("Try again") {
+                Task { await store.loadProducts() }
+            }
+            .buttonStyle(.glass)
         } else {
             VStack(spacing: Theme.Spacing.sm) {
                 ForEach(store.products, id: \.id) { product in
@@ -131,7 +147,7 @@ struct PaywallView: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
                     .controlSize(.large)
                     .disabled(store.isPurchasing)
                 }

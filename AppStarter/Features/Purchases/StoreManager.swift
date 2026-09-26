@@ -77,6 +77,9 @@ final class StoreManager {
     /// paywall, not for granting anything.
     var hasPro: Bool { !purchasedIDs.isEmpty }
 
+    /// Whether Settings should offer "Manage subscription".
+    var hasSubscription: Bool { purchasedIDs.contains(ProductID.annual) }
+
     /// The signed-in account, stamped onto purchases as Apple's
     /// `appAccountToken`.
     ///
@@ -192,6 +195,9 @@ final class StoreManager {
         do {
             try await AppStore.sync()
             await refreshEntitlements()
+            errorMessage = hasPro ? nil : "No purchase found."
+        } catch StoreKitError.userCancelled {
+            // Backing out of the sign-in prompt isn't a failure.
         } catch {
             errorMessage = "Couldn't restore purchases."
         }

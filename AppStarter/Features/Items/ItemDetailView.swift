@@ -11,9 +11,10 @@ import SwiftUI
 /// can't be undone by typing.
 struct ItemDetailView: View {
     @Bindable var item: Item
+    /// Called before the delete, so the caller stops showing this item first.
+    var onDelete: () -> Void = {}
 
     @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
     @State private var confirmingDelete = false
 
     var body: some View {
@@ -43,9 +44,9 @@ struct ItemDetailView: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
+                onDelete()
                 context.delete(item)
                 Haptics.notify(.success)
-                dismiss()
             }
         } message: {
             Text("This can't be undone.")

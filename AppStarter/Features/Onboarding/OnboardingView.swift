@@ -58,7 +58,7 @@ struct OnboardingView: View {
                         withAnimation { index += 1 }
                     }
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .controlSize(.large)
                 .frame(maxWidth: .infinity)
 

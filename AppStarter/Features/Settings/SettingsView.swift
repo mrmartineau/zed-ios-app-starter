@@ -1,93 +1,123 @@
 import SwiftData
 import SwiftUI
 
-/// Preferences, plus the usual "about" odds and ends.
+/// Preferences, plus the usual "about" odds and ends. A sheet, opened from the
+/// leading toolbar button on every tab.
 ///
 /// Every row here reads and writes `AppSettings`, which persists to
-/// `UserDefaults` — so there is nothing to save and nothing to reload.
+/// `UserDefaults` — so there is nothing to save and nothing to reload, and the
+/// only button is Done.
 struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(StoreManager.self) private var store
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
 
     @State private var showingPaywall = false
     @State private var confirmingReset = false
+    @State private var redeeming = false
+    @State private var managingSubscription = false
 
     var body: some View {
         @Bindable var settings = settings
 
-        Form {
-            Section("Appearance") {
-                Picker("Theme", selection: $settings.appearance) {
-                    ForEach(AppSettings.Appearance.allCases) { option in
-                        Text(option.label).tag(option)
+        NavigationStack {
+            Form {
+                Section("Appearance") {
+                    Picker("Theme", selection: $settings.appearance) {
+                        ForEach(AppSettings.Appearance.allCases) { option in
+                            Text(option.label).tag(option)
+                        }
                     }
                 }
-            }
 
-            AppIconSection(showingPaywall: $showingPaywall)
+                AppIconSection(showingPaywall: $showingPaywall)
 
-            Section {
-                Toggle("Haptics", isOn: $settings.hapticsEnabled)
-            } footer: {
-                Text("Small vibrations when something is added, deleted or confirmed.")
-            }
+                Section {
+                    Toggle("Haptics", isOn: $settings.hapticsEnabled)
+                } footer: {
+                    Text("Small vibrations when something is added, deleted or confirmed.")
+                }
 
-            if AppFeatures.purchases {
-                Section("Pro") {
-                    if store.hasPro {
-                        Label("Pro unlocked", systemImage: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Button("Unlock Pro") { showingPaywall = true }
+                if AppFeatures.purchases {
+                    Section {
+                        if store.hasPro {
+                            Label("Pro unlocked", systemImage: "checkmark.seal.fill")
+                                .foregroundStyle(.green)
+                        } else {
+                            Button("Unlock Pro") { showingPaywall = true }
+                        }
+
+                        if store.hasSubscription {
+                            Button("Manage subscription") { managingSubscription = true }
+                        }
+
+                        Button("Restore purchases") {
+                            Task { await store.restore() }
+                        }
+                        Button("Redeem a code") { redeeming = true }
+                    } header: {
+                        Text("Pro")
+                    } footer: {
+                        if let message = store.errorMessage {
+                            Text(message)
+                        }
                     }
+                }
 
-                    Button("Restore purchases") {
-                        Task { await store.restore() }
+                Section("Help") {
+                    // Settings closes first; `RootView` opens the walkthrough from
+                    // this sheet's `onDismiss`, because a sheet asked for while
+                    // another is still up never appears.
+                    Button("Show the walkthrough again") {
+                        settings.hasCompletedOnboarding = false
+                        dismiss()
                     }
                 }
-            }
 
-            Section("Help") {
-                Button("Show the walkthrough again") {
-                    settings.hasCompletedOnboarding = false
+                Section {
+                    LabeledContent("Version", value: Bundle.main.versionString)
+                }
+
+                Section {
+                    Button("Reset all settings", role: .destructive) {
+                        confirmingReset = true
+                    }
+                } footer: {
+                    Text("Restores appearance, haptics and the walkthrough to their defaults. Your items are not touched.")
+                }
+
+                #if DEBUG
+                // Debug-only so it can never ship. Handy while building screens
+                // that need something on them.
+                Section("Debug") {
+                    Button("Add sample items") {
+                        for item in Item.samples { context.insert(item) }
+                    }
+                }
+                #endif
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
                 }
             }
-
-            Section {
-                LabeledContent("Version", value: Bundle.main.versionString)
+            .sheet(isPresented: $showingPaywall) {
+                PaywallView()
             }
-
-            Section {
-                Button("Reset all settings", role: .destructive) {
-                    confirmingReset = true
+            .offerCodeRedemption(isPresented: $redeeming)
+            .manageSubscriptionsSheet(isPresented: $managingSubscription)
+            .onAppear { store.clearError() }
+            .confirmationDialog(
+                "Reset all settings?",
+                isPresented: $confirmingReset,
+                titleVisibility: .visible
+            ) {
+                Button("Reset", role: .destructive) {
+                    settings.reset()
+                    Haptics.notify(.success)
                 }
-            } footer: {
-                Text("Restores appearance, haptics and the walkthrough to their defaults. Your items are not touched.")
-            }
-
-            #if DEBUG
-            // Debug-only so it can never ship. Handy while building screens
-            // that need something on them.
-            Section("Debug") {
-                Button("Add sample items") {
-                    for item in Item.samples { context.insert(item) }
-                }
-            }
-            #endif
-        }
-        .navigationTitle("Settings")
-        .sheet(isPresented: $showingPaywall) {
-            PaywallView()
-        }
-        .confirmationDialog(
-            "Reset all settings?",
-            isPresented: $confirmingReset,
-            titleVisibility: .visible
-        ) {
-            Button("Reset", role: .destructive) {
-                settings.reset()
-                Haptics.notify(.success)
             }
         }
     }
@@ -103,7 +133,7 @@ extension Bundle {
 }
 
 #Preview {
-    NavigationStack { SettingsView() }
+    SettingsView()
         .environment(AppSettings.preview)
         .environment(StoreManager())
         .modelContainer(PreviewData.container)

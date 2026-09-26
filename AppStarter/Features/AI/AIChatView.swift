@@ -28,7 +28,8 @@ struct AIChatView: View {
                         showingKeySheet = true
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    // A title even though only the icon shows: VoiceOver reads it.
+                    Label("More", systemImage: "ellipsis")
                 }
             }
         }

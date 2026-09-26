@@ -1,6 +1,6 @@
 # zed-ios-app-starter
 
-SwiftUI, SwiftData, iOS 18+, Xcode 26, no third-party dependencies.
+SwiftUI, SwiftData, iOS 26+, Xcode 26, no third-party dependencies.
 
 <!-- template-only:start -->
 A starter project to scaffold new iOS apps from, so the same shell doesn't get
@@ -27,7 +27,13 @@ a first commit. See [Scaffolding](#scaffolding) for the options.
 
 ## What's in it
 
-- **Tab shell** — Home, Items, Settings, each with its own `NavigationStack`
+- **Tab shell** — Home and Items, a tab bar on iPhone and a sidebar on iPad,
+  with Settings as a sheet from the leading toolbar button on every tab
+- **iPhone and iPad** — Items is a `NavigationSplitView` (list and detail side
+  by side when there is room), content capped with `.readableWidth()`, ⌘N and
+  ⌘, shortcuts
+- **Liquid Glass** — iOS 26 only, so glass button styles with no
+  `#available` checks
 - **SwiftData** — one `@Model`, wired through list → detail → edit → delete
 - **Preferences** — `@Observable` object over `UserDefaults`, injected once
 - **Onboarding** — paged walkthrough on first launch, replayable from Settings
@@ -63,12 +69,12 @@ zed-ios-app-starter/
     ├── AppStarterApp.swift        @main — container, environment, splash
     ├── Info.plist                 Launch screen only; the rest is generated
     ├── PrivacyInfo.xcprivacy      Privacy manifest — required at submission
-    ├── App/                       RootView (tabs), SplashView
+    ├── App/                       RootView (tabs, shared toolbar), SplashView
     ├── Features/
     │   ├── Home/                  First tab
-    │   ├── Items/                 List + detail over SwiftData
+    │   ├── Items/                 Split view: list + detail over SwiftData
     │   ├── Onboarding/            First-launch walkthrough
-    │   ├── Settings/              Preferences
+    │   ├── Settings/              Preferences, in a sheet
     │   ├── Purchases/             StoreManager, PaywallView   (optional)
     │   └── AI/                    AnthropicClient, chat        (optional)
     ├── Models/                    Item (@Model), AppSettings
@@ -138,6 +144,14 @@ the four references — the `ModelContainer` and `.modelContainer()` in
 `AppStarterApp.swift`, the Items tab in `RootView.swift`, the `@Query` and card
 in `HomeView.swift`, and the debug section in `SettingsView.swift`.
 
+### Sheets — `App/RootView.swift`
+
+Settings and onboarding are presented from the root, one at a time. Onboarding
+waits for the splash to go (`isReady`), because a sheet asked for in the first
+frame is dropped. "Show the walkthrough again" closes Settings first, and the
+walkthrough opens from Settings' `onDismiss`: a sheet asked for while another
+is still up never appears.
+
 ### Theme — `Support/Theme.swift`
 
 A 4pt spacing scale, three radii, and a `.card()` modifier. Colours that differ
@@ -196,8 +210,14 @@ end up selling, and the two follow different rules — delete whichever one a
 project doesn't want. `hasPro` treats either as unlocking everything; split it
 into a property per tier when they stop being equivalent.
 
+Every paywall has **Restore purchases** and **Redeem a code** (an App Store
+Connect offer code, on the system sheet), and Settings has both again, plus
+Manage subscription for subscribers. A redeemed code arrives on
+`Transaction.updates`, so no code handles the result. If products fail to load,
+the paywall says so and offers Try again rather than an empty list.
+
 `Store/Products.storekit` is referenced by the shared scheme, so purchases work
-in the simulator with no App Store Connect setup — run, open Settings → Unlock
+in the simulator with no App Store Connect setup — run, tap the gear → Unlock
 Pro, and buy. Xcode's Debug → StoreKit menu resets local transactions.
 
 **Selling a subscription means the paywall carries legal weight.** Guideline

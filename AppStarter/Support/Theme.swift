@@ -47,6 +47,16 @@ enum Theme {
     }
 }
 
+// MARK: - Layout
+
+extension View {
+    /// Caps content at a comfortable reading width and centres it. On iPad or
+    /// a wide window, text and cards otherwise stretch edge to edge.
+    func readableWidth(_ maxWidth: CGFloat = 700) -> some View {
+        frame(maxWidth: maxWidth).frame(maxWidth: .infinity)
+    }
+}
+
 // MARK: - Card
 
 extension View {

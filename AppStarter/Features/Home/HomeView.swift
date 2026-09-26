@@ -16,16 +16,11 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.md) {
                 header
 
-                NavigationLink {
-                    ItemListView()
-                } label: {
-                    StatCard(
-                        title: "Items",
-                        value: "\(items.count)",
-                        caption: items.isEmpty ? "Nothing saved yet" : "Tap to browse"
-                    )
-                }
-                .buttonStyle(.plain)
+                StatCard(
+                    title: "Items",
+                    value: "\(items.count)",
+                    caption: items.isEmpty ? "Nothing saved yet" : "Browse them in the Items tab"
+                )
 
                 if AppFeatures.ai {
                     NavigationLink {
@@ -58,6 +53,7 @@ struct HomeView: View {
                 .card()
             }
             .padding(Theme.Spacing.md)
+            .readableWidth()
         }
         .navigationTitle("Home")
         .background(Color(uiColor: .systemGroupedBackground))

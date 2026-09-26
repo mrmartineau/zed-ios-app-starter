@@ -29,7 +29,7 @@ struct AppStarterApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
-                RootView()
+                RootView(isReady: !showSplash)
 
                 if showSplash {
                     SplashView()
